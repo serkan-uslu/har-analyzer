@@ -8,7 +8,7 @@ import PuppeteerHar from 'puppeteer-har';
 
 // Renkli ve formatlı log mesajları için fonksiyon
 export const logWithColor = (message, color = 'white') => {
-  console.log(new Date() + ' ' + chalk[color](message));
+  console.log(`${new Date()} ${chalk[color](message)}`);
 };
 
 // URL, User-Agent ve zaman damgasını alarak dosya adı oluştur
@@ -22,25 +22,28 @@ const generateFilename = (url, userAgentType) => {
 // Klasör oluşturmak için fonksiyon
 const ensureDirectoryExistence = (filePath) => {
   const dirname = path.dirname(filePath);
-  if (fs.existsSync(dirname)) {
-    return true;
+  if (!fs.existsSync(dirname)) {
+    fs.mkdirSync(dirname, { recursive: true });
   }
-  ensureDirectoryExistence(dirname);
-  fs.mkdirSync(dirname);
 };
 
 export const analyzeHar = async (filePath) => {
-  // Dosyayı oku ve JSON'a çevir
-  const harData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  const entries = harData.log.entries;
+  let harData;
+  try {
+    harData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    logWithColor('HAR dosyası okunamıyor.', 'red');
+    return;
+  }
 
+  const entries = harData.log.entries;
   if (!entries || entries.length === 0) {
-    logWithColor('No entries found in HAR file.', 'red');
+    logWithColor('HAR dosyasında kayıt bulunamadı.', 'red');
     return;
   }
 
   // Basic Stats
-  logWithColor('Basic Stats: ', 'green');
+  logWithColor('Basic Stats:', 'green');
 
   const totalRequests = entries.length;
   logWithColor(`  Total number of requests: ${totalRequests}`, 'yellow');
@@ -135,11 +138,9 @@ export const startCaptureHarFile = async (url, userAgentType) => {
   const page = await browser.newPage();
 
   // User-Agent türüne göre ayarları yap
-  if (userAgentType === 'desktop') {
-    await page.setUserAgent(website.userAgentInfo.desktop);
-  } else if (userAgentType === 'mobile') {
-    await page.setUserAgent(website.userAgentInfo.mobile);
-  }
+  const userAgent =
+    website.userAgentInfo[userAgentType] || website.userAgentInfo.desktop;
+  page.setUserAgent(userAgent);
 
   // HAR kaydı başlat
   const har = new PuppeteerHar(page);
